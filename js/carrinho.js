@@ -2,6 +2,9 @@
   'use strict';
   const byId = id => document.getElementById(id);
   const money = cents => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+  const coke2lPhoto = 'https://ik.imagekit.io/njb6ql4jt/rs/10001707-removebg-preview%20(1).png';
+  const cokeCanPhoto = 'https://ik.imagekit.io/njb6ql4jt/rs/10000392-removebg-preview.png';
+  const miniPuddingPhoto = 'https://ik.imagekit.io/njb6ql4jt/rs/mini-pudim-referencia.png';
   let displayedCart = [];
 
   function destination(path) {
@@ -52,11 +55,16 @@
     try {
       const url = new URL(value, root.location.href);
       const local = url.origin === new URL(root.location.href).origin;
-      const imagekit = url.origin === 'https://ik.imagekit.io' && url.pathname.startsWith('/njb6ql4jt/rs/');
+      const products = Object.values(root.PRODUCT_CATALOG || {});
+      const catalogImage = products.some(product => product.image === url.href);
+      const imagekit = url.origin === 'https://ik.imagekit.io'
+        && (url.pathname.startsWith('/njb6ql4jt/rs/') || catalogImage);
       if (!/^https?:$/.test(url.protocol) || (!local && !imagekit) || url.username || url.password) return '';
       // Stored carts may still refer to a catalog image by its previous local URL.
       if (local && url.pathname.startsWith('/images/')) {
-        const equivalent = Object.values(root.PRODUCT_CATALOG || {}).find(product => product.image === 'https://ik.imagekit.io/njb6ql4jt/rs/' + url.pathname.slice('/images/'.length));
+        const filename = url.pathname.slice('/images/'.length);
+        const equivalent = products.find(product => product.image === 'https://ik.imagekit.io/njb6ql4jt/rs/' + filename
+          || product.image === 'https://ik.imagekit.io/njb6ql4jt/New%20Folderv4/' + filename);
         if (equivalent) return equivalent.image;
       }
       return url.href;
@@ -66,12 +74,16 @@
   function photo(item) {
     const box = document.createElement('div');
     box.className = 'cart-item-photo';
-    const fallbackProduct = Object.values(root.PRODUCT_CATALOG || {}).find(product => product.name === item.name);
-    const url = imageUrl(item.image) || imageUrl(fallbackProduct && fallbackProduct.image);
+    const catalogProduct = Object.values(root.PRODUCT_CATALOG || {}).find(product => product.name === item.name);
+    const addonPhoto = /^Coca-Cola 2L(?: |$)/.test(item.name) ? coke2lPhoto
+      : /^Coca-Cola Lata(?: |$)/.test(item.name) ? cokeCanPhoto
+      : item.name === 'Mini Pudim' ? miniPuddingPhoto : '';
+    const url = imageUrl(addonPhoto) || imageUrl(catalogProduct && catalogProduct.image) || imageUrl(item.image);
     if (url) {
       const img = document.createElement('img');
       img.src = url;
       img.alt = item.name;
+      if (item.name === 'Mini Pudim') img.className = 'cart-pudding-photo';
       img.width = 88;
       img.height = 88;
       img.addEventListener('error', () => { box.replaceChildren(fallbackPhoto(item)); }, { once: true });
@@ -81,9 +93,7 @@
   }
 
   function fallbackPhoto(item) {
-    const sprite = /^Coca-Cola 2L(?: |$)/.test(item.name) ? 'coke-2l'
-      : /^Coca-Cola Lata(?: |$)/.test(item.name) ? 'coke-can'
-      : item.name === 'Sobremesa da Casa' ? 'dessert' : '';
+    const sprite = item.name === 'Sobremesa da Casa' ? 'dessert' : '';
     const element = document.createElement('span');
     element.className = sprite ? 'cart-sprite cart-sprite--' + sprite : 'fa-solid fa-bag-shopping';
     element.setAttribute('role', 'img');
@@ -188,7 +198,7 @@
     if (!current || JSON.stringify(current) !== JSON.stringify(expected)) throw Error('Sua sacola mudou. Feche esta janela e confira os itens antes de continuar.');
     const items = readCart();
     if (items.some(item => item.id === 'checkout-mini-pudim')) return current;
-    items.push({ id: 'checkout-mini-pudim', name: 'Mini Pudim', price: 5, quantity: 1, total: 5, image: '', options: {}, observation: 'Adicional' });
+    items.push({ id: 'checkout-mini-pudim', name: 'Mini Pudim', price: 5, quantity: 1, total: 5, image: miniPuddingPhoto, options: {}, observation: 'Adicional' });
     try { root.localStorage.setItem('cart', JSON.stringify(items)); }
     catch (_) { throw Error('Não foi possível adicionar o pudim. Verifique o armazenamento e tente novamente.'); }
     render();

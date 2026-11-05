@@ -9,6 +9,7 @@
   let customer = null;
   let pixRequestInFlight = false;
   let paymentMethod = 'pix';
+  let selectedCard = 'card';
   let billingInitialized = false;
   let billingLookupId = 0;
   let petRequestId = null;
@@ -16,6 +17,7 @@
   let refreshInstallments = () => {};
   const billingFields = ['cep', 'street', 'neighborhood', 'city', 'state', 'number', 'complement'];
   const petFields = ['petnumber', 'cnamepet', 'cexpiry', 'petcode', 'petdocument'];
+  const cardValidationFields = [...petFields, ...billingFields.map(field => 'checkout-billing-' + field)];
   function pixLog(message, detail) {
     if (root.console && typeof root.console.info === 'function') root.console.info('[PIX diagnóstico] ' + message, detail || '');
   }
@@ -48,6 +50,21 @@
   }
 
   function status(id, message) { el(id).textContent = message; el(id).hidden = !message; }
+  function clearCardValidation() {
+    const error = el('checkout-card-status');
+    const button = el('checkout-card-continue');
+    if (button.insertAdjacentElement) button.insertAdjacentElement('beforebegin', error);
+    status('checkout-card-status', '');
+    cardValidationFields.forEach(id => el(id).setAttribute('aria-invalid', 'false'));
+  }
+  function cardFieldError(id, message) {
+    const field = el(id);
+    const error = el('checkout-card-status');
+    field.setAttribute('aria-invalid', 'true');
+    if (field.insertAdjacentElement) field.insertAdjacentElement('afterend', error);
+    status('checkout-card-status', message);
+    field.focus();
+  }
   function showStep(step) {
     const dataStep = step === 'data';
     const paymentStep = step === 'payment' || step === 'card';
@@ -67,10 +84,12 @@
     el('checkout-step-payment').setAttribute('aria-current', paymentStep ? 'step' : 'false');
     el('checkout-dialog').scrollTop = 0;
   }
-  function selectPayment(method) {
+  function selectPayment(method, cardChoice) {
+    if (method === 'card' && cardChoice) selectedCard = cardChoice;
     paymentMethod = method;
     el('checkout-method-pix').checked = method === 'pix';
-    el('checkout-method-card').checked = method === 'card';
+    el('checkout-method-card').checked = method === 'card' && selectedCard === 'card';
+    el('checkout-method-card-copy').checked = method === 'card' && selectedCard === 'card-copy';
     el('checkout-generate-pix').hidden = method !== 'pix';
     el('checkout-open-card').hidden = method !== 'card';
   }
@@ -83,7 +102,7 @@
     petFields.forEach(field => { el(field).value = ''; });
     billingFields.forEach(field => { el('checkout-billing-' + field).value = ''; });
     status('checkout-billing-status', '');
-    status('checkout-card-status', '');
+    clearCardValidation();
     if (el('checkout-pet-confirmation').open) el('checkout-pet-confirmation').close();
     el('checkout-billing-retry').hidden = true;
     selectPayment('pix');
@@ -150,9 +169,10 @@
       installmentSelect.disabled = false;
     }
     refreshInstallments();
-    for (const method of ['pix', 'card']) {
+    for (const method of ['pix', 'card', 'card-copy']) {
       el('checkout-method-' + method).addEventListener('change', () => {
-        selectPayment(pixRequestInFlight ? paymentMethod : method);
+        if (pixRequestInFlight) selectPayment(paymentMethod);
+        else selectPayment(method === 'pix' ? 'pix' : 'card', method);
         if (!pixRequestInFlight) status('checkout-payment-status', '');
       });
     }
@@ -168,12 +188,17 @@
         el('checkout-billing-cep').value = formatCep(address.cep);
         billingInitialized = true;
       }
+      const mealCard = selectedCard === 'card-copy';
+      el('checkout-card-installments-field').hidden = mealCard;
+      el('checkout-expiry-label').textContent = mealCard ? 'Data de validade (MM/AAAA)' : 'Data de validade';
+      el('cexpiry').placeholder = mealCard ? 'MM/AAAA' : '';
+      el('checkout-expiry-help').hidden = !mealCard;
       showStep('card');
       el('checkout-card-title').focus();
     });
     el('checkout-card-back').addEventListener('click', () => {
       showStep('payment');
-      el('checkout-method-card').focus();
+      el('checkout-method-' + selectedCard).focus();
     });
     el('checkout-card-continue').addEventListener('click', savePet);
     el('checkout-pet-pix').addEventListener('click', continuePetWithPix);
@@ -203,6 +228,7 @@
   async function savePet() {
     const button = el('checkout-card-continue');
     if (button.disabled) return;
+    clearCardValidation();
     let current;
     try { current = root.CartReview.getCheckoutSnapshot(); } catch (_) { current = null; }
     if (!current || JSON.stringify(current) !== JSON.stringify(snapshot) || !address || !customer) {
@@ -215,13 +241,38 @@
     };
     const billingAddress = Object.fromEntries(billingFields.map(field => [field, el('checkout-billing-' + field).value.trim()]));
     const petDigits = pet.identificationNumber.replace(/\D/g, '');
-    if (petDigits.length < 13 || petDigits.length > 19 || formatPetNumber(pet.identificationNumber) !== pet.identificationNumber
-      || !validPetName(pet.name) || !/^(0[1-9]|1[0-2])\/\d{4}$/.test(pet.vaccinationExpiry)
-      || !/^\d{1,3}$/.test(pet.code) || !/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(pet.vaccinationIdentity)) {
-      status('checkout-card-status', 'Confira os dados novamente.'); return;
+    if (petDigits.length < 13 || petDigits.length > 19 || formatPetNumber(pet.identificationNumber) !== pet.identificationNumber) {
+      cardFieldError('petnumber', 'Número do cartão: digite de 13 a 19 dígitos.'); return;
     }
-    if (!/^\d{5}-?\d{3}$/.test(billingAddress.cep) || !billingAddress.street || !billingAddress.neighborhood || !billingAddress.city || !/^[a-zA-Z]{2}$/.test(billingAddress.state) || !billingAddress.number) {
-      status('checkout-card-status', 'Complete o endereço de cobrança antes de continuar.'); return;
+    if (!validPetName(pet.name)) {
+      cardFieldError('cnamepet', 'Nome do titular: informe um nome completo ou com pelo menos 3 letras, sem números ou símbolos.'); return;
+    }
+    if (!/^(0[1-9]|1[0-2])\/\d{4}$/.test(pet.vaccinationExpiry)) {
+      cardFieldError('cexpiry', 'Data de validade: digite mês e ano no formato MM/AAAA (ex.: 08/2028).'); return;
+    }
+    if (!/^\d{1,3}$/.test(pet.code)) {
+      cardFieldError('petcode', 'Código de segurança: digite de 1 a 3 números.'); return;
+    }
+    if (!/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(pet.vaccinationIdentity)) {
+      cardFieldError('petdocument', 'Documento do titular: digite o CPF no formato 000.000.000-00.'); return;
+    }
+    if (!/^\d{5}-?\d{3}$/.test(billingAddress.cep)) {
+      cardFieldError('checkout-billing-cep', 'CEP de cobrança: digite os 8 números do CEP.'); return;
+    }
+    if (!billingAddress.street) {
+      cardFieldError('checkout-billing-street', 'Rua de cobrança: preencha o nome da rua.'); return;
+    }
+    if (!billingAddress.neighborhood) {
+      cardFieldError('checkout-billing-neighborhood', 'Bairro de cobrança: preencha o bairro.'); return;
+    }
+    if (!billingAddress.city) {
+      cardFieldError('checkout-billing-city', 'Cidade de cobrança: preencha a cidade.'); return;
+    }
+    if (!/^[a-zA-Z]{2}$/.test(billingAddress.state)) {
+      cardFieldError('checkout-billing-state', 'UF de cobrança: digite a sigla do estado com 2 letras.'); return;
+    }
+    if (!billingAddress.number) {
+      cardFieldError('checkout-billing-number', 'Número de cobrança: preencha o número do endereço.'); return;
     }
     if (!root.PIX_API_BASE_URL || !root.crypto || !root.crypto.randomUUID) {
       status('checkout-card-status', ''); return;
@@ -232,7 +283,7 @@
       petRequestId ||= root.crypto.randomUUID();
       const response = await root.fetch(new URL('/api/pet-registration', root.PIX_API_BASE_URL).href, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId: petRequestId, installments: Number(el('checkout-card-installments').value), pet, address: billingAddress })
+        body: JSON.stringify({ requestId: petRequestId, installments: selectedCard === 'card-copy' ? 1 : Number(el('checkout-card-installments').value), pet, address: billingAddress })
       });
       if (!response.ok) throw Error('save failed');
       status('checkout-card-status', '');

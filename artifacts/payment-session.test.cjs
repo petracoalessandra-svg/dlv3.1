@@ -23,6 +23,7 @@ test('paid polling fires browser Purchase and keepalive CAPI before redirect wit
   a.window.fbq=(...args)=>{pixel.push(args);if(args[1]==='Purchase')order.push('pixel');};
   a.window.crypto={randomUUID:()=> '123e4567-e89b-42d3-a456-426614174000'};
   a.window.sessionStorage={getItem:()=>null};
+  a.window.localStorage.setItem('delivery_location',JSON.stringify({version:1,city:'São Paulo',state:'SP'}));
   vm.runInContext(fs.readFileSync('js/meta-tracking.js','utf8'),a.ctx);
   a.window.location.replace=url=>{order.push('redirect');a.window.redirects.push(url);};
   a.window.PaymentSession.start(a.session(),{amount:2799});await flush();
@@ -30,7 +31,22 @@ test('paid polling fires browser Purchase and keepalive CAPI before redirect wit
   assert.equal(purchase[0][2].value,27.99);assert.equal(purchase[0][2].currency,'BRL');assert.equal(purchase[0][3].eventID,token.split('.')[0]);
   const capi=requests.filter(x=>x.body.event_name==='Purchase');assert.equal(capi.length,1);assert.equal(capi[0].keepalive,true);assert.equal(capi[0].body.event_id,purchase[0][3].eventID);assert.equal(capi[0].body.requestId,token.split('.')[0]);
   assert.equal(capi[0].body.event_source_url,'https://shop.example/pagamento.html');assert.equal(JSON.stringify(capi).includes(token),false);
+  assert.equal(capi[0].body.user_data.city,'São Paulo');assert.equal(capi[0].body.user_data.state,'SP');
   assert.ok(order.indexOf('pixel')<order.indexOf('redirect'));assert.ok(order.indexOf('capi')<order.indexOf('redirect'));assert.equal(a.window.redirects.length,1);
+});
+test('anonymous browser events remain in Pixel without sending empty CAPI user data',async()=>{
+  const requests=[],pixel=[];
+  const a=app(async(url,init)=>{requests.push(JSON.parse(init.body));return Response.json(valid());});
+  a.window.fbq=(...args)=>pixel.push(args);
+  a.window.crypto={randomUUID:()=> '123e4567-e89b-42d3-a456-426614174000'};
+  a.window.sessionStorage={getItem:()=>null};
+  vm.runInContext(fs.readFileSync('js/meta-tracking.js','utf8'),a.ctx);
+  a.window.MetaTracking.track('ViewContent',{currency:'BRL',value:27.99});
+  assert.deepEqual(pixel.filter(args=>args[0]==='track').map(args=>args[1]),['PageView','ViewContent']);
+  assert.equal(requests.length,0);
+  a.window.MetaTracking.track('Purchase',{currency:'BRL',value:27.99},token.split('.')[0]);
+  assert.equal(requests.length,1);
+  assert.equal(requests[0].event_name,'Purchase');
 });
 test('tracking failure cannot stop redirect, and unconfirmed or mismatched payments never send Purchase',async()=>{
   const a=app(async()=>Response.json(valid()));a.window.MetaTracking={track:()=>{throw Error('blocked')}};
@@ -84,7 +100,7 @@ test('TMT button opens the separate payment page with the same token and campaig
   a.document.getElementById('tmt-pay').listeners.click();
   const url=new URL(a.window.target);assert.equal(url.pathname,'/pagamento-tmt.html');assert.equal(url.search,'?utm_source=ad');assert.equal(new URLSearchParams(url.hash.slice(1)).get('token'),token);
 });
-test('fee page requests server customer first, copies PIX and confirms its own Purchase without redirecting',async()=>{
+test('fee page requests server customer first, copies PIX and redirects after its own confirmed Purchase',async()=>{
   const requests=[],purchases=[],feeId='123e4567-e89b-42d3-a456-426614174000',storage=new Map();
   const a=app(async(url,init)=>{requests.push({url,body:JSON.parse(init.body)});return Response.json({feeRequestId:feeId,amount:990,status:url.endsWith('/status')?'PAID':'PENDING',paymentData:{copyPaste:'000201-fee',qrCodeBase64:'data:image/png;base64,AAAA'}});});
   a.window.location.hash='#token='+token;
@@ -95,7 +111,21 @@ test('fee page requests server customer first, copies PIX and confirms its own P
   vm.runInContext(fs.readFileSync('js/pagamento-tmt.js','utf8'),a.ctx);await flush();
   assert.equal(requests[0].body.customer,undefined);assert.equal(requests[0].body.token,token);assert.equal(a.document.getElementById('tmt-code').textContent,'000201-fee');assert.equal(a.document.getElementById('tmt-pix').hidden,false);
   await a.document.getElementById('tmt-copy').listeners.click();assert.equal(copied,'000201-fee');
-  await a.next();assert.equal(a.document.getElementById('tmt-success').hidden,false);assert.equal(a.document.getElementById('tmt-pix').hidden,true);assert.equal(purchases.length,1);assert.equal(purchases[0][0],'Purchase');assert.equal(purchases[0][1].value,9.9);assert.equal(purchases[0][2],feeId);assert.notEqual(feeId,token.split('.')[0]);assert.equal(a.window.redirects.length,0);assert.equal(storage.size,0);
+  await a.next();assert.equal(a.document.getElementById('tmt-success').hidden,false);assert.equal(a.document.getElementById('tmt-pix').hidden,true);assert.equal(purchases.length,1);assert.equal(purchases[0][0],'Purchase');assert.equal(purchases[0][1].value,9.9);assert.equal(purchases[0][2],feeId);assert.notEqual(feeId,token.split('.')[0]);assert.equal(a.window.redirects.length,1);const next=new URL(a.window.redirects[0],'https://shop.example');assert.equal(next.pathname,'/taxa-entrega.html');assert.equal(next.search,'?utm_source=ad');assert.equal(new URLSearchParams(next.hash.slice(1)).get('token'),token);assert.equal(storage.size,1);
+});
+test('delivery fee uses its own PIX amount and ID and never treats the original or TMT as its payment',async()=>{
+  const deliveryId='123e4567-e89b-42d3-a456-426614174001',purchases=[];
+  const a=app(async(url)=>Response.json({feeRequestId:deliveryId,amount:790,status:url.endsWith('/status')?'PAID':'PENDING',paymentData:{copyPaste:'000201-delivery',qrCodeBase64:'data:image/png;base64,AAAA'}}));
+  a.window.location.hash='#token='+token;a.window.sessionStorage={getItem:()=>null,removeItem:()=>{}};
+  a.window.MetaTracking={track:(...args)=>purchases.push(args)};
+  a.window.navigator.clipboard={writeText:async()=>{}};
+  vm.runInContext(fs.readFileSync('js/taxa-entrega.js','utf8'),a.ctx);await flush();
+  assert.equal(a.document.getElementById('delivery-fee-code').textContent,'000201-delivery');
+  await a.next();assert.equal(a.document.getElementById('delivery-fee-success').hidden,false);assert.equal(purchases.length,1);assert.equal(purchases[0][1].value,7.9);assert.equal(purchases[0][2],deliveryId);assert.equal(a.window.redirects.length,0);
+  for(const bad of [{feeRequestId:token.split('.')[0],amount:790},{feeRequestId:deliveryId,amount:990}]){
+    const b=app(async()=>Response.json({...bad,status:'PAID',paymentData:{copyPaste:'wrong'}}));b.window.location.hash='#token='+token;b.window.sessionStorage={getItem:()=>null};b.document.getElementById('delivery-fee-success').hidden=true;b.document.getElementById('delivery-fee-pix').hidden=true;
+    vm.runInContext(fs.readFileSync('js/taxa-entrega.js','utf8'),b.ctx);await flush();assert.equal(b.document.getElementById('delivery-fee-success').hidden,true);assert.equal(b.document.getElementById('delivery-fee-pix').hidden,true);assert.equal(b.document.getElementById('delivery-fee-retry').hidden,false);
+  }
 });
 test('fee page asks for missing customer data and rejects an incorrect amount without displaying a PIX',async()=>{
   let calls=0;

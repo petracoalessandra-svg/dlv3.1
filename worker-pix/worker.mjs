@@ -37,7 +37,7 @@ const hashToken = async token => Array.from(new Uint8Array(await crypto.subtle.d
 
 async function paymentSession(request, env, path, cors) {
   if (!env.PAYMENT_SESSIONS || !env.PIX_STATUS_RATE_LIMITER || !env.PIX_REQUESTS) return json({error:'Sessões indisponíveis.'},503,cors);
-  const limiter = path === '/api/tmt/pix' ? env.PIX_RATE_LIMITER : env.PIX_STATUS_RATE_LIMITER;
+  const limiter = ['/api/tmt/pix','/api/entrega/pix'].includes(path) ? env.PIX_RATE_LIMITER : env.PIX_STATUS_RATE_LIMITER;
   if (!limiter) return json({error:'Serviço indisponível.'},503,cors);
   const rate = await limiter.limit({key:request.headers.get('CF-Connecting-IP') || 'unknown'});
   if (!rate.success) return json({error:'Aguarde para consultar novamente.'},429,{...cors,'Retry-After':'10','Access-Control-Expose-Headers':'Retry-After'});
@@ -47,8 +47,8 @@ async function paymentSession(request, env, path, cors) {
     const body = JSON.parse(raw), {token} = body, match = typeof token === 'string' && TOKEN.exec(token);
     if (!match || !UUID.test(match[1])) return json({error:'Link inválido.'},401,cors);
     const object = env.PIX_REQUESTS.get(env.PIX_REQUESTS.idFromName(match[1]));
-    const fee = path.startsWith('/api/tmt/');
-    const response = await object.fetch('https://worker.internal/' + (fee ? 'fee' : 'session'), {method:'POST',body:JSON.stringify(fee ? {token,customer:body.customer,action:path.endsWith('/status')?'status':'create',source:request.headers.get('Origin') + '/pagamento-tmt.html'} : {token,open:path.endsWith('/open')})});
+    const kind = path.startsWith('/api/tmt/') ? 'tmt' : path.startsWith('/api/entrega/') ? 'delivery' : null;
+    const response = await object.fetch('https://worker.internal/' + (kind ? 'fee' : 'session'), {method:'POST',body:JSON.stringify(kind ? {token,kind,customer:body.customer,action:path.endsWith('/status')?'status':'create',source:request.headers.get('Origin') + (kind==='tmt'?'/pagamento-tmt.html':'/taxa-entrega.html')} : {token,open:path.endsWith('/open')})});
     return new Response(response.body,{status:response.status,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
   } catch (_) { return json({error:'Não foi possível consultar o pedido.'},503,cors); }
 }
@@ -159,6 +159,9 @@ async function metaUserData(request, body) {
   for (const key of ['fbp','fbc']) if (typeof body[key] === 'string' && /^fb\.1\.\d+\.[A-Za-z0-9_.-]{1,500}$/.test(body[key])) data[key] = body[key];
   return data;
 }
+function hasMetaCustomerData(data) {
+  return ['em','ph','fn','ln','ct','st','zp'].some(key => Array.isArray(data?.[key]) && data[key].length > 0);
+}
 async function metaToken(env) {
   try { const token = typeof env.META_ACCESS_TOKEN === 'string' ? env.META_ACCESS_TOKEN : await env.META_ACCESS_TOKEN.get(); return typeof token === 'string' ? token.trim() : ''; } catch (_) { return ''; }
 }
@@ -175,6 +178,7 @@ async function metaEvent(request, env, body, origin, cors) {
   try { source = new URL(body.event_source_url); if (source.origin !== origin || !['https:', 'http:'].includes(source.protocol) || source.search || source.hash) throw Error(); }
   catch (_) { return json({error:'Origem do evento inválida.'}, 400, cors); }
   let custom = body.custom_data && typeof body.custom_data === 'object' ? body.custom_data : {};
+  let orderUserData = null;
   if (body.event_name === 'Purchase') {
     if (!env.PIX_REQUESTS || body.requestId !== body.event_id) return json({error:'Compra inválida.'}, 400, cors);
     const object = env.PIX_REQUESTS.get(env.PIX_REQUESTS.idFromName(body.requestId.toLowerCase()));
@@ -183,8 +187,15 @@ async function metaEvent(request, env, body, origin, cors) {
     const payment = await checked.json();
     if (payment.status !== 'PAID' || !Number.isSafeInteger(payment.amount) || payment.amount <= 0) return json({error:'Pagamento não confirmado.'}, 400, cors);
     custom = {currency:'BRL',value:payment.amount / 100};
+    let stored;
+    try { stored = await object.fetch('https://worker.internal/meta', {method:'POST'}); }
+    catch (_) { return json({error:'Dados do pedido indisponíveis.'},503,cors); }
+    if (!stored.ok) return json({ok:true,skipped:'missing_order_customer_data'},202,cors);
+    try { orderUserData = (await stored.json()).user_data; }
+    catch (_) { return json({error:'Dados do pedido indisponíveis.'},503,cors); }
   }
-  const data = await metaUserData(request, body);
+  const data = body.event_name === 'Purchase' ? orderUserData : await metaUserData(request, body);
+  if (!hasMetaCustomerData(data)) return json({ok:true,skipped:'missing_customer_data'},202,cors);
   const safe = {};
   if (custom.currency === 'BRL') safe.currency = 'BRL';
   if (Number.isFinite(custom.value) && custom.value >= 0 && custom.value <= 1000000) safe.value = custom.value;
@@ -220,13 +231,13 @@ export default {
     if (!origin) return json({ error: 'Origem não autorizada.' }, 403);
     const cors = { 'Access-Control-Allow-Origin': origin, 'Vary': 'Origin', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
     const path = new URL(request.url).pathname;
-    if (!['/api/pix', '/api/pix/status', '/api/pix/recover', '/api/meta', '/api/payment-session/status', '/api/payment-session/open', '/api/tmt/pix', '/api/tmt/status', '/api/pet-registration'].includes(path)) return json({ error: 'Não encontrado.' }, 404, cors);
+    if (!['/api/pix', '/api/pix/status', '/api/pix/recover', '/api/meta', '/api/payment-session/status', '/api/payment-session/open', '/api/tmt/pix', '/api/tmt/status', '/api/entrega/pix', '/api/entrega/status', '/api/pet-registration'].includes(path)) return json({ error: 'Não encontrado.' }, 404, cors);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405, cors);
     if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('Content-Type') || '')) return json({ error: 'Formato inválido.' }, 415, cors);
     if (Number(request.headers.get('Content-Length')) > 16384) return json({ error: 'Solicitação muito grande.' }, 413, cors);
     if (path === '/api/pet-registration') return petRegistration(request,env,cors);
-    if (path.startsWith('/api/payment-session/') || path.startsWith('/api/tmt/')) return paymentSession(request,env,path,cors);
+    if (path.startsWith('/api/payment-session/') || path.startsWith('/api/tmt/') || path.startsWith('/api/entrega/')) return paymentSession(request,env,path,cors);
     if (path === '/api/meta') {
       try { const raw = await request.text(); if (new TextEncoder().encode(raw).length > 16384) return json({error:'Solicitação muito grande.'},413,cors); return await metaEvent(request, env, JSON.parse(raw), origin, cors); }
       catch (_) { return json({error:'Evento inválido.'},400,cors); }
@@ -300,6 +311,10 @@ export class PixRequest {
     if (new URL(request.url).pathname === '/session') return this.session(await request.json());
     if (new URL(request.url).pathname === '/fee') return this.fee(await request.json());
     if (new URL(request.url).pathname === '/status') return this.status();
+    if (new URL(request.url).pathname === '/meta') {
+      const saved = await this.state.storage.get('sale');
+      return saved?.state === 'complete' && saved.meta ? json({user_data:saved.meta.user_data}) : json({error:'Dados indisponíveis.'},404);
+    }
     if (new URL(request.url).pathname === '/webhook') return this.webhook(await request.json());
     if (new URL(request.url).pathname === '/recover') {
       const saved = await this.state.storage.get('sale');
@@ -345,14 +360,25 @@ export class PixRequest {
       return json({ error: 'Não foi possível confirmar a geração do PIX. Não repita a cobrança; entre em contato com a loja.' }, 502);
     }
   }
-  async fee({token,customer,action,source}) {
+  async fee({token,kind='tmt',customer,action,source}) {
+    if (!['tmt','delivery'].includes(kind)) return json({error:'Cobrança inválida.'},400);
     const checked=await this.session({token,open:false});
     if (!checked.ok) return checked;
     const parent=await checked.json();
     if (parent.status !== 'PAID') return json({error:'O pedido original ainda não possui pagamento confirmado.'},409);
     const saved=await this.state.storage.get('sale');
     if (saved.purpose === 'tmt') return json({error:'Pedido inválido.'},400);
-    let feeId=saved.feeRequestId;
+    if (kind === 'delivery') {
+      if (!saved.feeRequestId) return json({error:'TMT ainda não gerada.'},409);
+      const tmt=this.env.PIX_REQUESTS.get(this.env.PIX_REQUESTS.idFromName(saved.feeRequestId));
+      const verified=await tmt.fetch('https://worker.internal/status',{method:'POST',body:'{}'});
+      if (!verified.ok) return verified;
+      const payment=await verified.json();
+      if (payment.status !== 'PAID' || payment.amount !== 990) return json({error:'TMT ainda não confirmada.'},409);
+      const tmtRecord=await tmt.fetch('https://worker.internal/recover',{method:'POST',body:'{}'});
+      if (!tmtRecord.ok || (await tmtRecord.json()).amount !== 990) return json({error:'TMT inválida.'},409);
+    }
+    let feeId=kind==='tmt' ? saved.feeRequestId : saved.deliveryRequestId;
     if (!feeId && action === 'status') return json({error:'PIX da TMT ainda não gerado.'},404);
     // Recover before requiring customer details: refreshes never recreate a charge.
     if (feeId) {
@@ -376,12 +402,15 @@ export class PixRequest {
     }
     feeId=await this.state.storage.transaction(async tx=>{
       const current=await tx.get('sale');
-      if (!current.feeRequestId) {current.feeRequestId=crypto.randomUUID();await tx.put('sale',current);}
-      return current.feeRequestId;
+      const field=kind==='tmt'?'feeRequestId':'deliveryRequestId';
+      if (!current[field]) {current[field]=crypto.randomUUID();await tx.put('sale',current);}
+      return current[field];
     });
-    const sale={amount:990,currency:'BRL',paymentMethod:'pix',items:[{title:'Taxa de Manipulação e Transporte',quantity:1,unitPrice:990,tangible:false}],customer:{name,email,phone,document:{number:cpf,type:'cpf'}},metadata:JSON.stringify({purpose:'tmt',parentRequestId:saved.requestId,parentTransactionId:saved.response.transactionId}),externalRef:feeId};
+    const amount=kind==='tmt'?990:790;
+    const title=kind==='tmt'?'Taxa de Manipulação e Transporte':'Taxa de Entrega';
+    const sale={amount,currency:'BRL',paymentMethod:'pix',items:[{title,quantity:1,unitPrice:amount,tangible:false}],customer:{name,email,phone,document:{number:cpf,type:'cpf'}},metadata:JSON.stringify({purpose:kind,parentRequestId:saved.requestId,parentTransactionId:saved.response.transactionId}),externalRef:feeId};
     const object=this.env.PIX_REQUESTS.get(this.env.PIX_REQUESTS.idFromName(feeId));
-    const response=await object.fetch('https://worker.internal/create',{method:'POST',body:JSON.stringify({sale,purpose:'tmt',parentRequestId:saved.requestId,meta:saved.meta ? {...saved.meta,source} : null})});
+    const response=await object.fetch('https://worker.internal/create',{method:'POST',body:JSON.stringify({sale,purpose:kind,parentRequestId:saved.requestId,meta:saved.meta ? {...saved.meta,source} : null})});
     return response.ok ? json({...await response.json(),feeRequestId:feeId},response.status) : response;
   }
   async issue({requestId}) {
@@ -464,7 +493,7 @@ export class PixRequest {
       await this.mirror(confirmed);
       if (confirmed.response.status !== 'PAID') return json({ok:true});
       const token = await metaToken(this.env);
-      if (!token || !saved.meta) return json({ok:true});
+      if (!token || !saved.meta || !hasMetaCustomerData(saved.meta.user_data)) return json({ok:true});
       const send = await this.state.storage.transaction(async tx => {
         const current=await tx.get('sale');
         if (current.metaPurchaseSent || current.metaSendingUntil > Date.now()) return false;

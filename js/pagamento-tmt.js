@@ -20,7 +20,7 @@
       const response=await root.fetch(endpoint.href,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:session.token,...data}),cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
       const result=await response.json();
       if (!response.ok) {const error=new Error(result.error || 'Não foi possível consultar o PIX.');error.code=result.code;error.status=response.status;error.retryMs=Number(response.headers.get('Retry-After'))*1000 || 0;throw error;}
-      if(result.amount!==990 || !['PENDING','PAID','CANCELLED','REFUNDED'].includes(result.status) || !uuid.test(result.feeRequestId || '') || (feeId && feeId!==result.feeRequestId)) throw Error('Resposta de pagamento inválida.');
+      if(result.amount!==990 || !['PENDING','PAID','CANCELLED','REFUNDED'].includes(result.status) || !uuid.test(result.feeRequestId || '') || result.feeRequestId===session.token.split('.')[0] || (feeId && feeId!==result.feeRequestId)) throw Error('Resposta de pagamento inválida.');
       feeId=result.feeRequestId;return result;
     } finally {root.clearTimeout(timeout);}
   }
@@ -31,7 +31,13 @@
     if(result.status==='PAID') {
       el('tmt-payment-status').textContent='Pagamento confirmado';el('tmt-success').hidden=false;
       try {if(root.MetaTracking)root.MetaTracking.track('Purchase',{currency:'BRL',value:9.90},feeId);} catch (_) {}
-      try {root.sessionStorage.removeItem(customerKey);} catch (_) {}
+      const next=new URL('/taxa-entrega.html',root.location.href);
+      for(const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']) {
+        const value=new URL(root.location.href).searchParams.get(key) || (session.campaign || {})[key];
+        if(value)next.searchParams.set(key,value.slice(0,200));
+      }
+      next.hash=new URLSearchParams({token:session.token}).toString();
+      root.location.replace(next.pathname+next.search+next.hash);
     } else el('tmt-payment-status').textContent=result.status==='REFUNDED'?'Pagamento estornado':'PIX cancelado';
   }
   const schedule=delay=>{root.clearTimeout(timer);if(!finished)timer=root.setTimeout(poll,delay);};

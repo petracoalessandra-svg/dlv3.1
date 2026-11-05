@@ -2047,3 +2047,15 @@ input::placeholder {
   padding: 10px;
   border-bottom: 1px solid #ddd;
 }
+.home-meal-card{box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;max-width:500px;min-height:56px;margin:10px auto 0;padding:7px 9px;border-radius:12px;background:#fff7f8;text-align:left}
+.home-meal-icon{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:11px;background:#ffeaed;color:#e51b30;font-size:21px}
+.home-meal-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px;font-family:Poppins,Arial,sans-serif;line-height:1.3}
+.home-meal-copy strong{color:#e41629;font-size:14px;font-weight:600}
+.home-meal-copy>span{color:#393939;font-size:13px;font-weight:500}
+.home-meal-brands{display:flex;align-items:center;flex:none;gap:4px}
+.home-meal-brand{box-sizing:border-box;display:grid;place-items:center;min-width:42px;height:27px;border-radius:6px;box-shadow:0 2px 4px #0002;color:#fff;white-space:nowrap;font-family:Poppins,Arial,sans-serif;font-weight:800}
+.home-meal-alelo{border-radius:16px;background:#078966;font-size:14px;font-style:italic;letter-spacing:-1px}
+.home-meal-vr{position:relative;overflow:hidden;justify-items:start;padding-left:8px;background:#138c55;font-size:13px;font-style:italic}
+.home-meal-vr::after{content:'';position:absolute;right:0;bottom:0;width:13px;height:14px;border-radius:10px 0 0 0;background:#ff7b22}
+.home-meal-ticket{background:#e30823;font-size:10px;letter-spacing:-.4px}
+@media(max-width:420px){.home-meal-card{gap:6px;padding:7px}.home-meal-icon{flex-basis:34px;height:34px;font-size:17px}.home-meal-copy strong{font-size:11px}.home-meal-copy>span{font-size:10px}.home-meal-brands{gap:3px}.home-meal-brand{min-width:31px;height:23px}.home-meal-alelo{font-size:11px}.home-meal-vr{padding-left:5px;font-size:11px}.home-meal-vr::after{width:10px;height:11px}.home-meal-ticket{min-width:35px;font-size:8px}}

@@ -64,7 +64,8 @@ test('the review renders every product and upsell with quantity, choices and acc
   assert.deepEqual(app.el('cart-items').querySelectorAll('.cart-item-price').map(el => el.textContent), [money(37.8), money(9.9), money(8.9)]);
   assert.equal(app.el('cart-items').querySelectorAll('.cart-item-quantity')[0].textContent, 'Quantidade: 2x');
   assert.equal(app.el('cart-items').querySelectorAll('.cart-item-details')[0].textContent, cart[0].observation);
-  assert.equal(app.el('cart-items').querySelectorAll('.cart-sprite').length, 2);
+  assert.equal(app.el('cart-items').querySelectorAll('.cart-sprite').length, 1);
+  assert.equal(app.el('cart-items').querySelectorAll('img')[1].src,'https://ik.imagekit.io/njb6ql4jt/rs/10001707-removebg-preview%20(1).png');
   assert.equal(app.el('cart-subtotal').textContent, money(56.6));
   assert.equal(app.el('cart-total').textContent, money(56.6));
   assert.equal(app.el('cart-finalize').disabled, false);
@@ -156,12 +157,37 @@ test('names and instructions render as text and unsafe image URLs are not loaded
 });
 test('ImageKit photos render in new and existing carts while foreign origins and namespaces remain blocked',()=>{
   const base='https://ik.imagekit.io/njb6ql4jt/rs/';
+  const current='https://ik.imagekit.io/njb6ql4jt/New%20Folderv4/marmitex-pequena.jpg';
   const direct=page({cart:[item('Produto CDN',10,1,{image:base+'logo.png'})]});assert.equal(direct.el('cart-items').querySelectorAll('img')[0].src,base+'logo.png');
   const saved=[item('Marmita Artesanal Churrasco P',18.9,1,{image:'images/marmitex-pequena.jpg'})];
-  const legacy=page({cart:saved});assert.equal(legacy.el('cart-items').querySelectorAll('img')[0].src,base+'marmitex-pequena.jpg');assert.deepEqual(legacy.cart(),saved);
-  for(const image of ['https://example.com/photo.png','https://ik.imagekit.io/other-account/photo.png','https://ik.imagekit.io/njb6ql4jt/rs/../private.png','https://user:password@ik.imagekit.io/njb6ql4jt/rs/logo.png']){
+  const legacy=page({cart:saved});assert.equal(legacy.el('cart-items').querySelectorAll('img')[0].src,current);assert.deepEqual(legacy.cart(),saved);
+  for(const oldImage of [base+'marmitex-pequena.jpg','']){
+    const oldCart=page({cart:[item(saved[0].name,18.9,1,{image:oldImage})]});
+    assert.equal(oldCart.el('cart-items').querySelectorAll('img')[0].src,current);
+  }
+  const catalog=legacy.window.PRODUCT_CATALOG;
+  const allProducts=page({cart:Object.values(catalog).map(product=>item(product.name,product.price,1,{image:product.image}))});
+  assert.deepEqual(allProducts.el('cart-items').querySelectorAll('img').map(image=>image.src),Object.values(catalog).map(product=>product.image));
+  for(const image of ['https://example.com/photo.png','https://ik.imagekit.io/other-account/photo.png','https://ik.imagekit.io/njb6ql4jt/rs/../private.png','https://ik.imagekit.io/njb6ql4jt/New%20Folderv4/unlisted.jpg','https://user:password@ik.imagekit.io/njb6ql4jt/rs/logo.png']){
     const invalid=page({cart:[item('Produto desconhecido',10,1,{image})]});assert.equal(invalid.el('cart-items').querySelectorAll('img').length,0);
   }
+});
+
+test('Coca-Cola and Mini Pudim use current photos even in older saved carts',()=>{
+  const saved=[
+    item('Coca-Cola 2L Normal',9.9,1,{image:'old-bottle.png'}),
+    item('Coca-Cola Lata Normal',6.9,1,{image:''}),
+    item('Mini Pudim',5,1,{id:'checkout-mini-pudim',image:''})
+  ];
+  const app=page({cart:saved});
+  const photos=app.el('cart-items').querySelectorAll('img');
+  assert.deepEqual(photos.map(photo=>photo.src),[
+    'https://ik.imagekit.io/njb6ql4jt/rs/10001707-removebg-preview%20(1).png',
+    'https://ik.imagekit.io/njb6ql4jt/rs/10000392-removebg-preview.png',
+    'https://ik.imagekit.io/njb6ql4jt/rs/mini-pudim-referencia.png'
+  ]);
+  assert.equal(photos[2].className,'cart-pudding-photo');
+  assert.deepEqual(app.cart(),saved);
 });
 
 test('checkout links target the static review and navigation preserves campaign parameters only', () => {
@@ -179,6 +205,8 @@ test('mini pudding is added once, persists, and works above R$ 98', () => {
   const original = app.window.CartReview.getCheckoutSnapshot();
   const updated = app.window.CartReview.addMiniPudding(original);
   assert.equal(updated.total, 27.99); assert.equal(app.cart()[1].name, 'Mini Pudim');
+  assert.equal(app.cart()[1].image,'https://ik.imagekit.io/njb6ql4jt/rs/mini-pudim-referencia.png');
+  assert.equal(app.el('cart-items').querySelectorAll('img')[0].className,'cart-pudding-photo');
   assert.equal(app.el('cart-total').textContent, money(27.99));
   assert.equal(app.window.CartReview.addMiniPudding(updated).items.length, 2);
   assert.throws(() => app.window.CartReview.addMiniPudding(original), /sacola mudou/);

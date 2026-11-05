@@ -11,10 +11,18 @@ const vm = require('node:vm');
 const projectRoot = path.resolve(__dirname, '..');
 const dataSource = fs.readFileSync(path.join(projectRoot, 'js/produto-data.js'), 'utf8');
 const appSource = fs.readFileSync(path.join(projectRoot, 'js/produto.js'), 'utf8');
-// CDN assets retain local counterparts; network availability is checked separately.
+// Legacy CDN assets retain local counterparts. New photos are hosted in ImageKit.
 function imageFile(image) {
   const base='https://ik.imagekit.io/njb6ql4jt/rs/';
   return image.startsWith(base) ? path.join(projectRoot,'images',image.slice(base.length)) : path.join(projectRoot,image);
+}
+function assertImageReference(image) {
+  const newPhotos = 'https://ik.imagekit.io/njb6ql4jt/New%20Folderv4/';
+  if (image.startsWith(newPhotos)) {
+    assert.match(image.slice(newPhotos.length), /^[a-z0-9-]+\.(?:jpe?g|webp)$/);
+    return;
+  }
+  assert.ok(fs.existsSync(imageFile(image)), image);
 }
 
 class Element {
@@ -343,7 +351,7 @@ test('all individual meals open from both catalogs with matching prices, photos 
       assert.equal(product.name, card.match(/<h3>(.*?)<\/h3>/)[1]);
       assert.equal(product.price, Number(card.match(/<span class="preco">R\$\s*([\d,]+)<\/span>/)[1].replace(',', '.')));
       assert.equal(product.image, card.match(/<img\b[^>]*src="([^"]+)"/)[1]);
-      assert.ok(fs.existsSync(imageFile(product.image)));
+      assertImageReference(product.image);
       assert.ok(product.rating && product.review && product.reviewer);
       const app = page({ query: '?slug=' + slug });
       assert.equal(app.el('product-title').textContent, product.name);
@@ -382,7 +390,7 @@ test('side dishes show reference descriptions without customization and save onl
     assert.equal(app.el('template-reviewer').textContent, side.reviewer + ' · pedido verificado');
     assert.equal(app.el('product-original-price').textContent, money(side.original));
     assert.equal(app.el('product-offer-label').textContent, 'Economize ' + money(side.saving));
-    assert.ok(fs.existsSync(imageFile(app.el('product-image').src)));
+    assertImageReference(app.el('product-image').src);
     app.click('product-quantity-plus');
     app.el('observation').value = 'Bem quentinho';
     app.click('add-to-cart');
@@ -409,7 +417,7 @@ test('every current product and a future category receive the same functional up
     assert.equal(app.el('suggestion-title').textContent, 'Vale mais a pena dividir', slug);
     assert.equal(app.el('suggestion-name').textContent, 'Kit Família 3\nMarmitas...', slug);
     assert.equal(app.el('suggestion-name').title, 'Kit Família 3 Marmitas Churrasco G', slug);
-    assert.equal(app.el('suggestion-image').src, 'https://ik.imagekit.io/njb6ql4jt/rs/familia.webp', slug);
+    assert.equal(app.el('suggestion-image').src, 'https://ik.imagekit.io/njb6ql4jt/New%20Folderv4/familia.webp', slug);
     assert.equal(app.el('suggestion-price').textContent, 'R$\u00a049,90', slug);
     assert.equal(app.el('suggestion-link').href, '/produto.html?slug=kit-familia-3-marmitas-churrasco-g', slug);
     app.click('toggle-coke-2l');
@@ -449,7 +457,7 @@ test('all grill products use the reference static accompaniments, individual rev
       const currentPrice = card.match(/<span class="preco"[^>]*>([\s\S]*?)<\/span>/)[1];
       assert.equal(product.price, Number(currentPrice.match(/R\$\s*([\d,]+)/)[1].replace(',', '.')));
       assert.equal(product.image, card.match(/<img\b[^>]*src="([^"]+)"/)[1]);
-      assert.ok(fs.existsSync(imageFile(product.image)));
+      assertImageReference(product.image);
       assert.ok(product.rating && product.review && product.reviewer);
       const app = page({ query: '?slug=' + slug });
       assert.ok(app.document.body.classList.contains('grill-product'));

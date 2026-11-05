@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const source = fs.readFileSync('js/checkout.js', 'utf8');
 function setup(fetch, config = {}) {
   const ids = new Map(); const handlers = {};
-  class Element { constructor(){ this.value=''; this.hidden=false; this.open=false; this.listeners={}; this.children=[]; } addEventListener(type,fn){this.listeners[type]=fn} setAttribute(k,v){this[k]=v} replaceChildren(...v){this.children=v} appendChild(v){this.children.push(v)} click(){return this.listeners.click?.()} focus(){} showModal(){this.open=true} close(){this.open=false} }
+  class Element { constructor(){ this.value=''; this.hidden=false; this.open=false; this.listeners={}; this.children=[]; } addEventListener(type,fn){this.listeners[type]=fn} setAttribute(k,v){this[k]=v} replaceChildren(...v){this.children=v} appendChild(v){this.children.push(v)} click(){return this.listeners.click?.()} focus(){this.focused=true} showModal(){this.open=true} close(){this.open=false} }
   const document={readyState:'complete',getElementById(id){if(!ids.has(id))ids.set(id,new Element());return ids.get(id)},createElement(){return new Element()}};
   const cart={items:[{name:'Prato',quantity:1,total:22.99}],subtotal:22.99,total:22.99,shipping:0};
   const events=[]; const storage = new Map(), timers = new Map(); let timerId=0;
@@ -226,6 +226,64 @@ function chooseCard(app) {
 }
 const cepResponse = () => ({ok:true,json:async()=>({logradouro:'Praça da Sé',bairro:'Sé',localidade:'São Paulo',uf:'SP'})});
 
+test('both card choices open the same card step and meal card lists only accepted brands',async()=>{
+  const html=fs.readFileSync('carrinho.html','utf8');
+  const choices=[...html.matchAll(/<label class="checkout-payment-choice checkout-payment-card(?: checkout-payment-meal)?">[\s\S]*?<\/label>/g)].map(match=>match[0]);
+  assert.equal(choices.length,2);
+  assert.match(choices[0],/Cartão de<br>Crédito\/Débito/);
+  assert.match(choices[1],/Cartão Alimentação \/ Refeição/);
+  assert.match(choices[1],/id="checkout-method-card-copy"[^>]*name="payment-method" value="card"/);
+  const accepted=choices[1].match(/<span class="checkout-meal-accepted"[\s\S]*?<\/span>\s*<\/label>/)?.[0];
+  assert.ok(accepted);
+  assert.match(accepted,/Aceitamos<br>somente:/);
+  assert.deepEqual([...accepted.matchAll(/aria-label="(Alelo|VR|Ticket)"/g)].map(match=>match[1]),['Alelo','VR','Ticket']);
+  for (const id of ['checkout-method-card','checkout-method-card-copy']) {
+    const app=setup(async()=>cepResponse());
+    await readyForPix(app);
+    app.el(id).listeners.change();
+    assert.equal(app.el(id).checked,true);
+    assert.equal(app.el(id === 'checkout-method-card' ? 'checkout-method-card-copy' : 'checkout-method-card').checked,false);
+    assert.equal(app.el('checkout-generate-pix').hidden,true);
+    assert.equal(app.el('checkout-open-card').hidden,false);
+    app.el('checkout-open-card').listeners.click();
+    assert.equal(app.el('checkout-card-step').hidden,false);
+    assert.equal(app.el('checkout-payment-step').hidden,true);
+  }
+});
+
+test('meal card hides installments, explains MM/AAAA and submits a single payment',async()=>{
+  const sent=[];
+  const app=setup(async(url,options)=>{
+    if (!options) return cepResponse();
+    sent.push(JSON.parse(options.body));
+    return {ok:true,status:201};
+  });
+  await readyForPix(app);
+  app.el('checkout-card-installments').value='6';
+  app.el('checkout-method-card-copy').listeners.change();
+  app.el('checkout-open-card').listeners.click();
+  assert.equal(app.el('checkout-card-installments-field').hidden,true);
+  assert.equal(app.el('checkout-expiry-label').textContent,'Data de validade (MM/AAAA)');
+  assert.equal(app.el('cexpiry').placeholder,'MM/AAAA');
+  assert.equal(app.el('checkout-expiry-help').hidden,false);
+  const expiry=app.el('cexpiry');
+  expiry.value='082028';expiry.listeners.input({target:expiry});
+  assert.equal(expiry.value,'08/2028');
+  app.window.PIX_API_BASE_URL='https://pix.example.com';
+  app.el('petnumber').value='1234 5678 9012 3';app.el('cnamepet').value='BIDU';
+  app.el('petcode').value='123';app.el('petdocument').value='123.456.789-01';
+  await app.el('checkout-card-continue').listeners.click();
+  assert.equal(sent.length,1);
+  assert.equal(sent[0].installments,1);
+  app.el('checkout-card-back').listeners.click();
+  app.el('checkout-method-card').listeners.change();
+  app.el('checkout-open-card').listeners.click();
+  assert.equal(app.el('checkout-card-installments-field').hidden,false);
+  assert.equal(app.el('checkout-expiry-label').textContent,'Data de validade');
+  assert.equal(app.el('cexpiry').placeholder,'');
+  assert.equal(app.el('checkout-expiry-help').hidden,true);
+});
+
 test('card selection opens a local step and keeps billing edits separate from delivery',async()=>{
   const calls=[];
   const app=setup(async(...args)=>{calls.push(args);return cepResponse()});
@@ -347,6 +405,36 @@ test('pet validation accepts 13 to 19 digits and an abbreviated middle name',asy
   await app.el('checkout-card-continue').listeners.click();assert.equal(sent.length,1);
   app.el('cexpiry').value='12/2028';app.el('petdocument').value='123.456.789-0';
   await app.el('checkout-card-continue').listeners.click();assert.equal(sent.length,1);
+});
+
+test('card validation names and focuses the incorrect field',async()=>{
+  const cases=[
+    ['petnumber','123',/Número do cartão: digite de 13 a 19 dígitos/],
+    ['cnamepet','Maria 123',/Nome do titular:/],
+    ['cexpiry','13/2028',/Data de validade:.*MM\/AAAA/],
+    ['petcode','abcd',/Código de segurança:/],
+    ['petdocument','123',/Documento do titular:.*CPF/],
+    ['checkout-billing-cep','123',/CEP de cobrança:.*8 números/],
+    ['checkout-billing-street','',/Rua de cobrança:/],
+    ['checkout-billing-neighborhood','',/Bairro de cobrança:/],
+    ['checkout-billing-city','',/Cidade de cobrança:/],
+    ['checkout-billing-state','ZZZ',/UF de cobrança:.*2 letras/],
+    ['checkout-billing-number','',/Número de cobrança:/]
+  ];
+  for (const [id,value,message] of cases) {
+    const app=setup(async()=>cepResponse());
+    await readyForPix(app);chooseCard(app);
+    app.el('petnumber').value='1234 5678 9012 3';
+    app.el('cnamepet').value='MARIA SILVA';
+    app.el('cexpiry').value='08/2028';
+    app.el('petcode').value='123';
+    app.el('petdocument').value='123.456.789-01';
+    app.el(id).value=value;
+    await app.el('checkout-card-continue').listeners.click();
+    assert.match(app.el('checkout-card-status').textContent,message,id);
+    assert.equal(app.el(id)['aria-invalid'],'true',id);
+    assert.equal(app.el(id).focused,true,id);
+  }
 });
 
 test('billing CEP handles incomplete, missing, network failure, retry and stale responses',async()=>{

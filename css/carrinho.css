@@ -23,6 +23,7 @@ button:focus-visible,a:focus-visible{outline:3px solid #eda326;outline-offset:3p
 .cart-item{display:grid;grid-template-columns:88px minmax(0,1fr) 25px;align-items:center;gap:15px;padding:16px 15px;min-height:147px;border-radius:17px;background:#fff;box-shadow:0 4px 14px #00000005}
 .cart-item-photo{display:flex;align-items:center;justify-content:center;width:88px;height:88px;overflow:hidden;border-radius:10px;background:#fafafa;flex-shrink:0}
 .cart-item-photo>img{display:block;width:100%;height:100%;object-fit:cover}
+.cart-item-photo>img.cart-pudding-photo{width:144px;height:auto;max-width:none;flex:none;align-self:flex-start;object-fit:initial}
 .cart-item-photo>.fa-bag-shopping{font-size:35px;color:#bbb}
 .cart-item-body{min-width:0}
 .cart-item h2{font-size:18px;line-height:21px;font-weight:500;margin:0;overflow-wrap:anywhere}
@@ -32,8 +33,6 @@ button:focus-visible,a:focus-visible{outline:3px solid #eda326;outline-offset:3p
 .cart-remove{display:grid;place-items:center;width:32px;height:44px;margin-left:-12px;border:0;padding:0;background:transparent;color:#999;font-size:23px;border-radius:7px}
 .cart-remove:hover{color:#ed1428;background:#fff5f6}
 .cart-sprite{display:block;flex:none;background-image:url('https://ik.imagekit.io/njb6ql4jt/rs/product-upsells-reference.png');background-size:378px 358px;background-repeat:no-repeat}
-.cart-sprite--coke-2l{width:27px;height:69px;background-position:-63px -43px}
-.cart-sprite--coke-can{width:37px;height:69px;background-position:-175px -43px}
 .cart-sprite--dessert{width:88px;height:51px;background-position:-266px -75px}
 .cart-summary{margin-top:20px;padding:32px 25px 24px;border-radius:21px;background:#fff;box-shadow:0 5px 24px #00000005}
 .summary-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:16px;line-height:24px}

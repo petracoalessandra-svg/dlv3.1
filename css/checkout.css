@@ -14,7 +14,19 @@
 .checkout-payment-choice:has(input:checked) .checkout-payment-radio{border:8px solid #ed142b}
 .checkout-payment-choice:has(input:focus-visible){outline:3px solid #eda326;outline-offset:3px}
 .checkout-payment-card .checkout-payment-icon{background:#fce8eb;color:#d11629}
+.checkout-payment-meal{display:block;padding:12px 10px}
+.checkout-payment-meal-main{display:flex;align-items:center;gap:12px;min-height:54px}
+.checkout-payment-meal .checkout-payment-icon{flex-basis:28px;height:28px;background:transparent;color:#e8172b;font-size:18px}
+.checkout-payment-meal .checkout-payment-text strong{font-size:16px;line-height:21px}
+.checkout-meal-accepted{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:56px;margin-top:8px;padding:7px 10px;border:1px solid #ffbdc5;border-radius:11px;background:#fff;color:#e8172b}
+.checkout-meal-accepted>strong{flex:0 0 auto;font-size:12px;line-height:17px;font-weight:700}
+.checkout-meal-brand{display:grid;place-items:center;flex:1;min-width:0;height:28px;border-radius:7px;box-shadow:0 2px 4px #0002;color:#fff;white-space:nowrap;font-weight:800}
+.checkout-meal-alelo{border-radius:16px;background:#078966;font-size:15px;font-style:italic;letter-spacing:-1px}
+.checkout-meal-vr{position:relative;overflow:hidden;justify-items:start;padding-left:7px;background:#148b56;font-size:14px;font-style:italic}
+.checkout-meal-vr::after{content:'';position:absolute;right:0;bottom:0;width:13px;height:14px;border-radius:10px 0 0 0;background:#ff7b22}
+.checkout-meal-ticket{background:#e30823;font-size:11px;letter-spacing:-.4px}
 .checkout-card-help{margin:7px 0 0;color:#777;font-size:12px;line-height:1.5}
+#checkout-card-step .checkout-input[aria-invalid="true"]{border-color:#d7192d;box-shadow:0 0 0 2px #ffd5da}
 .checkout-card-grid{display:grid;gap:20px}
 #checkout-card-step .checkout-section-title{white-space:normal}
 #checkout-card-step .checkout-input{min-width:0}

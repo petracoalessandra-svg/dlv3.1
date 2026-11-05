@@ -127,6 +127,38 @@ test('TMT charge is bound to a paid order, fixed at 990 cents and recovered with
     assert.equal((await worker.fetch(webhook,env)).status,200);assert.equal(metaEvents.length,1);assert.equal(metaEvents[0].event_id,first.feeRequestId);assert.equal(metaEvents[0].custom_data.value,9.9);assert.equal(metaEvents[0].event_source_url,'http://127.0.0.1:5500/pagamento-tmt.html');
   } finally {globalThis.fetch=old;}
 });
+test('delivery charge requires paid TMT, uses its own 790-cent request and polls independently',async()=>{
+  const env=sessionsEnv(),old=globalThis.fetch,creates=[];let tmtPaid=false,deliveryPaid=false;
+  globalThis.fetch=async(url,init)=>{
+    if(url.includes('create-sale')){
+      const input=JSON.parse(init.body);creates.push(input);
+      const transactionId=input.amount===990?'tmt-transaction':input.amount===790?'delivery-transaction':'order-transaction';
+      return Response.json({success:true,data:{...response().data,amount:input.amount,transactionId}});
+    }
+    const delivery=url.includes('delivery-transaction'),tmt=url.includes('tmt-transaction');
+    return Response.json({success:true,data:{transactionId:delivery?'delivery-transaction':tmt?'tmt-transaction':'order-transaction',status:delivery?(deliveryPaid?'PAID':'PENDING'):tmt?(tmtPaid?'PAID':'PENDING'):'PAID',amount:delivery?790:tmt?990:2799,paymentMethod:'pix'}});
+  };
+  try {
+    const original=await (await worker.fetch(req('/api/pix',sale()),env)).json(),token=original.sessionToken;
+    assert.equal((await worker.fetch(req('/api/entrega/pix',{token}),env)).status,409);
+    const tmt=await (await worker.fetch(req('/api/tmt/pix',{token}),env)).json();
+    assert.equal((await worker.fetch(req('/api/entrega/pix',{token}),env)).status,409);
+    tmtPaid=true;
+    env.testRecords.get(tmt.feeRequestId+':sale').statusCheckedAt=0;
+    const delivery=await (await worker.fetch(req('/api/entrega/pix',{token,amount:1}),env)).json();
+    assert.equal(delivery.amount,790);assert.equal(delivery.status,'PENDING');
+    assert.notEqual(delivery.feeRequestId,tmt.feeRequestId);assert.notEqual(delivery.feeRequestId,id);
+    assert.equal(creates[2].amount,790);assert.equal(creates[2].items[0].title,'Taxa de Entrega');
+    assert.equal((await (await worker.fetch(req('/api/entrega/status',{token}),env)).json()).status,'PENDING');
+    deliveryPaid=true;
+    env.testRecords.get(delivery.feeRequestId+':sale').statusCheckedAt=0;
+    assert.equal((await (await worker.fetch(req('/api/entrega/status',{token}),env)).json()).status,'PAID');
+    assert.equal((await (await worker.fetch(req('/api/tmt/status',{token}),env)).json()).amount,990);
+    assert.equal((await (await worker.fetch(req('/api/payment-session/status',{token}),env)).json()).amount,2799);
+    assert.equal((await (await worker.fetch(req('/api/entrega/pix',{token}),env)).json()).feeRequestId,delivery.feeRequestId);
+    assert.equal(creates.length,3);
+  } finally {globalThis.fetch=old;}
+});
 test('TMT rejects invalid tokens and unpaid orders; ambiguous fee creation never issues a second charge',async()=>{
   const env=sessionsEnv(),old=globalThis.fetch;let parentPaid=false,feeCreates=0;
   globalThis.fetch=async(url,init)=>{
@@ -286,6 +318,9 @@ test('Meta CAPI hashes supplied customer data and rejects unconfirmed purchases'
     assert.equal(calls[0].init.headers.Authorization,'Bearer test-token');
     const payload=JSON.parse(calls[0].init.body).data[0];
     assert.equal(payload.event_id,id); assert.equal(payload.user_data.fbp,'fb.1.123.456'); assert.match(payload.user_data.em[0],/^[a-f0-9]{64}$/); assert.equal(JSON.stringify(payload).includes('MARIA@example.com'),false); assert.equal(payload.custom_data.value,27.99);
+    const anonymous={...event,event_name:'PageView',user_data:{},fbp:'fb.1.123.456'};
+    const skipped=await worker.fetch(req('/api/meta',anonymous),env);
+    assert.equal(skipped.status,202); assert.equal(calls.length,1);
     const purchase={...event,event_name:'Purchase',requestId:id};
     assert.equal((await worker.fetch(req('/api/meta',purchase),env)).status,400); assert.equal(calls.length,1);
     assert.equal((await worker.fetch(req('/api/meta',{...event,event_source_url:'https://other.example/'}),env)).status,400);
@@ -305,5 +340,31 @@ test('webhook verifies the Blackcat payment and sends one deduplicated purchase'
     assert.equal((await call(webhook)).status,200); assert.equal((await call(webhook)).status,200);
     const meta=calls.filter(c=>c.url.includes('graph.facebook.com')); assert.equal(meta.length,1);
     const event=JSON.parse(meta[0].init.body).data[0]; assert.equal(event.event_id,id); assert.equal(event.event_name,'Purchase'); assert.equal(event.custom_data.value,27.99); assert.equal(event.user_data.fbp,'fb.1.123.456'); assert.match(event.user_data.em[0],/^[a-f0-9]{64}$/);
+  } finally {globalThis.fetch=old;}
+});
+test('browser Purchase uses customer hashes stored with the paid PIX even in a new tab',async()=>{
+  const env=makeEnv(),old=globalThis.fetch,calls=[];
+  env.META_ACCESS_TOKEN='test-token';env.META_RATE_LIMITER={limit:async()=>({success:true})};
+  globalThis.fetch=async(url,init)=>{
+    if(url.includes('create-sale')) return Response.json(response());
+    if(url.includes('/status')) return Response.json({success:true,data:{transactionId:'txn-test',status:'PAID',paymentMethod:'pix',amount:2799}});
+    if(url.includes('graph.facebook.com')) {calls.push(JSON.parse(init.body).data[0]);return Response.json({events_received:1});}
+    throw Error('Unexpected URL');
+  };
+  try {
+    assert.equal((await worker.fetch(req('/api/pix',sale()),env)).status,201);
+    const purchase={event_name:'Purchase',event_id:id,requestId:id,event_source_url:'http://127.0.0.1:5500/pagamento.html',user_data:{email:'other@example.com'},custom_data:{currency:'BRL',value:1}};
+    assert.equal((await worker.fetch(req('/api/meta',purchase),env)).status,200);
+    assert.equal(calls.length,1);
+    assert.equal(calls[0].custom_data.value,27.99);
+    const stored=env.testRecords.get(id+':sale').meta.user_data;
+    assert.deepEqual(calls[0].user_data,stored);
+    assert.equal(calls[0].event_id,id);
+    const record=env.testRecords.get(id+':sale');
+    env.testRecords.set(id+':sale',{...record,meta:null});
+    const skipped=await worker.fetch(req('/api/meta',purchase),env);
+    assert.equal(skipped.status,202);
+    assert.equal((await skipped.json()).skipped,'missing_order_customer_data');
+    assert.equal(calls.length,1);
   } finally {globalThis.fetch=old;}
 });
