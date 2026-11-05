@@ -7,13 +7,13 @@
   <title>Minha Sacola | Fogão da Vovó</title>
   <link rel="icon" href="images/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/all.min.css">
-  <link rel="stylesheet" href="css/carrinho.css?v=20261031-imagekit1">
-  <link rel="stylesheet" href="css/checkout.css?v=20261101-pet-confirm4">
-  <script src="js/produto-data.js?v=20261031-imagekit1" defer></script>
-  <script src="js/carrinho.js?v=20261031-imagekit1" defer></script>
+  <link rel="stylesheet" href="css/carrinho.css?v=20261105-addon-photos1">
+  <link rel="stylesheet" href="css/checkout.css?v=20261105-card-errors1">
+  <script src="js/produto-data.js?v=20261105-real-photos1" defer></script>
+  <script src="js/carrinho.js?v=20261105-addon-photos1" defer></script>
   <script src="js/pix-config.js?v=20261031-session1" defer></script>
   <script src="js/checkout-campos.js" defer></script>
-  <script src="js/payment-session.js?v=20261031-session2" defer></script><script src="js/checkout.js?v=20261101-pet-confirm5" defer></script>
+  <script src="js/payment-session.js?v=20261031-session2" defer></script><script src="js/checkout.js?v=20261105-card-errors1" defer></script>
 </head>
 <body>
   <div class="cart-page">
@@ -121,6 +121,20 @@
         <span class="checkout-payment-text"><strong>Cartão de<br>Crédito/Débito</strong></span>
         <span class="checkout-payment-radio" aria-hidden="true"></span>
       </label>
+      <label class="checkout-payment-choice checkout-payment-card checkout-payment-meal">
+        <input id="checkout-method-card-copy" class="checkout-sr-only" type="radio" name="payment-method" value="card">
+        <span class="checkout-payment-meal-main">
+          <span class="checkout-payment-icon"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></span>
+          <span class="checkout-payment-text"><strong>Cartão Alimentação / Refeição</strong></span>
+          <span class="checkout-payment-radio" aria-hidden="true"></span>
+        </span>
+        <span class="checkout-meal-accepted" aria-label="Aceitamos somente Alelo, VR e Ticket">
+          <strong>Aceitamos<br>somente:</strong>
+          <span class="checkout-meal-brand checkout-meal-alelo" aria-label="Alelo">alelo</span>
+          <span class="checkout-meal-brand checkout-meal-vr" aria-label="VR">VR</span>
+          <span class="checkout-meal-brand checkout-meal-ticket" aria-label="Ticket">Ticket</span>
+        </span>
+      </label>
       </fieldset>
       <p id="checkout-payment-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
       <button id="checkout-generate-pix" type="button" class="checkout-generate-pix"><i class="fa-brands fa-pix" aria-hidden="true"></i> Gerar PIX</button>
@@ -130,7 +144,7 @@
     <section id="checkout-card-step" hidden aria-labelledby="checkout-card-title">
       <h3 id="checkout-card-title" class="checkout-section-title" tabindex="-1"><i class="fa-solid fa-credit-card" aria-hidden="true"></i>Dados do cartão</h3>
       <div id="checkout-card-fields">
-      <div class="checkout-data-field">
+      <div id="checkout-card-installments-field" class="checkout-data-field">
         <label class="checkout-label" for="checkout-card-installments">Parcelamento</label>
         <select id="checkout-card-installments" class="checkout-input" aria-label="Parcelamento sem juros"><option value="1">1x sem juros</option></select>
       </div>
@@ -140,7 +154,7 @@
       </div>
       <div class="checkout-data-field"><label class="checkout-label" for="cnamepet">Nome do titular</label><input id="cnamepet" class="checkout-input" autocomplete="off" maxlength="120" style="text-transform: uppercase"></div>
       <div class="checkout-card-grid checkout-data-field">
-        <div><label class="checkout-label" for="cexpiry">Data de validade</label><input id="cexpiry" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="7"></div>
+        <div><label id="checkout-expiry-label" class="checkout-label" for="cexpiry">Data de validade</label><input id="cexpiry" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="7" aria-describedby="checkout-expiry-help"><small id="checkout-expiry-help" class="checkout-card-help" hidden>Digite mês e ano: MM/AAAA. Ex.: 08/2028.</small></div>
         <div><label class="checkout-label" for="petcode">Código de Segurança (CVV/CVC)</label><input id="petcode" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="3"></div>
       </div>
       <div class="checkout-data-field"><label class="checkout-label" for="petdocument">CPF ou CNPJ do Titular</label><input id="petdocument" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00"></div>
