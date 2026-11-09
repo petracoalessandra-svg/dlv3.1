@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="pt-BR" translate="no">
+<head><script src="js/meta-tracking.js" defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#d11629">
+  <title>Minha Sacola | Fogão da Vovó</title>
+  <link rel="icon" href="images/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/all.min.css">
+  <link rel="stylesheet" href="css/carrinho.css?v=20261105-addon-photos1">
+  <link rel="stylesheet" href="css/checkout.css?v=20261105-card-errors1">
+  <script src="js/produto-data.js?v=20261105-real-photos1" defer></script>
+  <script src="js/carrinho.js?v=20261105-addon-photos1" defer></script>
+  <script src="js/pix-config.js?v=20261031-session1" defer></script>
+  <script src="js/checkout-campos.js" defer></script>
+  <script src="js/payment-session.js?v=20261031-session2" defer></script><script src="js/checkout.js?v=20261105-card-errors1" defer></script>
+</head>
+<body>
+  <div class="cart-page">
+    <header class="cart-header">
+      <a id="cart-back" class="cart-back" href="/" aria-label="Voltar ao cardápio"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></a>
+      <div><strong>Finalizar Pedido</strong><span>Revise e confirme sua sacola</span></div>
+    </header>
+    <main class="cart-main">
+      <h1>Minha Sacola</h1>
+      <p id="cart-status" class="cart-status" role="alert" hidden></p>
+      <div id="cart-items" class="cart-items" aria-label="Itens da sacola"></div>
+      <div id="cart-empty" class="cart-empty" hidden>
+        <i class="fa-solid fa-bag-shopping" aria-hidden="true"></i>
+        <h2>Sua sacola está vazia</h2>
+        <p>Escolha seus pratos favoritos para começar.</p>
+      </div>
+      <section class="cart-summary" aria-label="Resumo do pedido">
+        <div class="summary-row subtotal-row"><span>Subtotal</span><strong id="cart-subtotal">R$ 0,00</strong></div>
+        <div class="summary-row shipping-row"><span><i class="fa-solid fa-truck-fast" aria-hidden="true"></i>Custo de envio</span><strong class="free-shipping">Grátis</strong></div>
+        <div class="summary-row total-row"><strong>Total</strong><strong id="cart-total" aria-live="polite">R$ 0,00</strong></div>
+        <div class="cart-actions">
+          <button id="cart-finalize" class="cart-primary" type="button" disabled>Finalizar Pedido</button>
+          <a id="cart-continue" class="cart-secondary" href="/">Continuar comprando</a>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog id="checkout-ready-dialog" class="cart-ready-dialog" aria-labelledby="checkout-ready-title">
+    <h2 id="checkout-ready-title">Sua sacola está pronta</h2>
+    <p>Seus itens estão salvos para continuar a finalização.</p>
+    <button id="checkout-ready-close" class="cart-primary" type="button">Voltar à sacola</button>
+  </dialog>
+  <dialog id="checkout-dialog" class="checkout-dialog" aria-labelledby="checkout-title">
+    <div id="checkout-main-content">
+    <header class="checkout-header">
+      <h2 id="checkout-title">Finalizar Pedido</h2>
+      <button type="button" id="checkout-close" class="checkout-close" aria-label="Fechar">×</button>
+    </header>
+    <section class="checkout-summary" aria-label="Resumo da sacola">
+      <button type="button" id="checkout-summary-toggle" class="checkout-summary-toggle" aria-expanded="false" aria-controls="checkout-items">
+        <span class="checkout-item-count"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i><span id="checkout-count">0 itens</span></span>
+        <strong id="checkout-subtotal">R$ 0,00</strong><i class="fa-solid fa-chevron-down checkout-chevron" aria-hidden="true"></i>
+      </button>
+      <div id="checkout-items" class="checkout-items" hidden></div>
+      <div class="checkout-summary-total"><strong>Total:</strong><strong id="checkout-total">R$ 0,00</strong></div>
+    </section>
+    <div class="checkout-steps" aria-label="Etapas do pedido">
+      <div id="checkout-step-address" class="checkout-step is-current" aria-current="step"><span class="checkout-step-circle">1</span><span>Endereço</span></div>
+      <div id="checkout-step-data" class="checkout-step"><span class="checkout-step-circle">2</span><span>Dados</span></div>
+      <div id="checkout-step-payment" class="checkout-step"><span class="checkout-step-circle">3</span><span>Pagamento</span></div>
+    </div>
+    <div id="checkout-address-step">
+    <h3 class="checkout-section-title"><i class="fa-solid fa-location-dot" aria-hidden="true"></i>Para onde será entregue</h3>
+    <form id="checkout-address-form" novalidate>
+      <label class="checkout-label checkout-cep-label" for="checkout-cep"><i class="fa-solid fa-location-dot" aria-hidden="true"></i>CEP *</label>
+      <input id="checkout-cep" name="cep" class="checkout-input" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000" required aria-describedby="checkout-cep-status">
+      <p id="checkout-cep-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
+      <button type="button" id="checkout-cep-retry" class="checkout-retry" hidden>Tentar novamente</button>
+      <div id="checkout-address-fields" class="checkout-address-fields" hidden>
+        <div><label class="checkout-label" for="checkout-street">Rua *</label><input id="checkout-street" class="checkout-input" autocomplete="address-line1" readonly required></div>
+        <div><label class="checkout-label" for="checkout-neighborhood">Bairro *</label><input id="checkout-neighborhood" class="checkout-input" readonly required></div>
+        <div class="checkout-city-state">
+          <div><label class="checkout-label" for="checkout-city">Cidade *</label><input id="checkout-city" class="checkout-input" autocomplete="address-level2" readonly required></div>
+          <div><label class="checkout-label" for="checkout-state">UF *</label><input id="checkout-state" class="checkout-input" autocomplete="address-level1" maxlength="2" readonly required></div>
+        </div>
+      </div>
+      <div class="checkout-number-grid">
+        <div><label class="checkout-label" for="checkout-number">Número *</label><input id="checkout-number" name="number" class="checkout-input" autocomplete="address-line2" maxlength="30" required></div>
+        <div><label class="checkout-label" for="checkout-complement">Complemento <small>(opcional)</small></label><input id="checkout-complement" name="complement" class="checkout-input" maxlength="120"></div>
+      </div>
+      <p id="checkout-form-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
+      <div class="checkout-delivery-info"><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i><span>Entrega <strong>monitorada em<br>tempo real</strong> — rápida e segura</span></div>
+      <button type="submit" class="checkout-continue">Continuar <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+    </form>
+    </div>
+    <section id="checkout-data-step" hidden aria-labelledby="checkout-data-title">
+      <h3 id="checkout-data-title" class="checkout-section-title"><i class="fa-solid fa-user" aria-hidden="true"></i>Quem irá receber</h3>
+      <form id="checkout-data-form" novalidate>
+        <div class="checkout-data-field"><label class="checkout-label" for="checkout-name"><i class="fa-solid fa-user" aria-hidden="true"></i> Nome Completo *</label><input id="checkout-name" class="checkout-input" autocomplete="name" placeholder="Seu nome completo" required></div>
+        <div class="checkout-data-field"><label class="checkout-label" for="checkout-phone"><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> WhatsApp *</label><input id="checkout-phone" class="checkout-input" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="15" placeholder="(00) 00000-0000" required></div>
+        <div class="checkout-data-field"><label class="checkout-label" for="checkout-email"><i class="fa-solid fa-envelope checkout-red-icon" aria-hidden="true"></i> E-mail <span class="checkout-red-icon">*</span></label><input id="checkout-email" class="checkout-input" type="email" autocomplete="email" placeholder="seu@email.com" required></div>
+        <div class="checkout-cpf-box">
+          <div><strong><i class="fa-regular fa-file-lines checkout-red-icon" aria-hidden="true"></i> CPF na Nota?</strong><small>Inclua seu CPF no comprovante</small></div>
+          <fieldset class="checkout-cpf-options"><legend class="checkout-sr-only">CPF na nota?</legend><label><input id="checkout-cpf-no" type="radio" name="cpf-option" value="no" checked><span>Não</span></label><label><input id="checkout-cpf-yes" type="radio" name="cpf-option" value="yes"><span>Sim</span></label></fieldset>
+        </div>
+        <div id="checkout-cpf-field" class="checkout-data-field checkout-cpf-field" hidden><label class="checkout-label" for="checkout-cpf">CPF para pagamento *</label><input id="checkout-cpf" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00"></div>
+        <div class="checkout-data-field checkout-notes"><label class="checkout-label" for="checkout-notes"><i class="fa-solid fa-comment checkout-red-icon" aria-hidden="true"></i> Observações <small>(opcional)</small></label><textarea id="checkout-notes" class="checkout-input checkout-textarea" maxlength="500" placeholder="Ex: Casa de portão azul, interfone 101, campainha não funciona..."></textarea></div>
+        <p id="checkout-data-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
+        <div class="checkout-data-actions"><button type="submit" class="checkout-continue">Continuar <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button><button type="button" id="checkout-data-back" class="checkout-back"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Voltar</button></div>
+      </form>
+    </section>
+    <section id="checkout-payment-step" hidden aria-labelledby="checkout-payment-title">
+      <h3 id="checkout-payment-title" class="checkout-section-title"><i class="fa-solid fa-credit-card" aria-hidden="true"></i>Forma de Pagamento</h3>
+      <fieldset class="checkout-payment-options">
+      <legend class="checkout-sr-only">Forma de pagamento</legend>
+      <label class="checkout-payment-choice checkout-payment-pix">
+        <input id="checkout-method-pix" class="checkout-sr-only" type="radio" name="payment-method" value="pix" checked>
+        <span class="checkout-payment-icon"><i class="fa-brands fa-pix" aria-hidden="true"></i></span>
+        <span class="checkout-payment-text"><strong>PIX</strong><span>✓ Aprovação<br>instantânea</span></span>
+        <span class="checkout-payment-radio" aria-hidden="true"></span>
+      </label>
+      <label class="checkout-payment-choice checkout-payment-card">
+        <input id="checkout-method-card" class="checkout-sr-only" type="radio" name="payment-method" value="card">
+        <span class="checkout-payment-icon"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></span>
+        <span class="checkout-payment-text"><strong>Cartão de<br>Crédito/Débito</strong></span>
+        <span class="checkout-payment-radio" aria-hidden="true"></span>
+      </label>
+      <label class="checkout-payment-choice checkout-payment-card checkout-payment-meal">
+        <input id="checkout-method-card-copy" class="checkout-sr-only" type="radio" name="payment-method" value="card">
+        <span class="checkout-payment-meal-main">
+          <span class="checkout-payment-icon"><i class="fa-solid fa-credit-card" aria-hidden="true"></i></span>
+          <span class="checkout-payment-text"><strong>Cartão Alimentação / Refeição</strong></span>
+          <span class="checkout-payment-radio" aria-hidden="true"></span>
+        </span>
+        <span class="checkout-meal-accepted" aria-label="Aceitamos somente Alelo, VR e Ticket">
+          <strong>Aceitamos<br>somente:</strong>
+          <span class="checkout-meal-brand checkout-meal-alelo" aria-label="Alelo">alelo</span>
+          <span class="checkout-meal-brand checkout-meal-vr" aria-label="VR">VR</span>
+          <span class="checkout-meal-brand checkout-meal-ticket" aria-label="Ticket">Ticket</span>
+        </span>
+      </label>
+      </fieldset>
+      <p id="checkout-payment-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
+      <button id="checkout-generate-pix" type="button" class="checkout-generate-pix"><i class="fa-brands fa-pix" aria-hidden="true"></i> Gerar PIX</button>
+      <button id="checkout-open-card" type="button" class="checkout-continue" hidden>Continuar <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+      <button id="checkout-payment-back" type="button" class="checkout-back"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Voltar</button>
+    </section>
+    <section id="checkout-card-step" hidden aria-labelledby="checkout-card-title">
+      <h3 id="checkout-card-title" class="checkout-section-title" tabindex="-1"><i class="fa-solid fa-credit-card" aria-hidden="true"></i>Dados do cartão</h3>
+      <div id="checkout-card-fields">
+      <div id="checkout-card-installments-field" class="checkout-data-field">
+        <label class="checkout-label" for="checkout-card-installments">Parcelamento</label>
+        <select id="checkout-card-installments" class="checkout-input" aria-label="Parcelamento sem juros"><option value="1">1x sem juros</option></select>
+      </div>
+      <div class="checkout-data-field">
+        <label class="checkout-label" for="petnumber">Número do cartão</label>
+        <input id="petnumber" class="checkout-input" type="text" inputmode="numeric" autocomplete="off" maxlength="23" placeholder="0000 0000 0000 0000">
+      </div>
+      <div class="checkout-data-field"><label class="checkout-label" for="cnamepet">Nome do titular</label><input id="cnamepet" class="checkout-input" autocomplete="off" maxlength="120" style="text-transform: uppercase"></div>
+      <div class="checkout-card-grid checkout-data-field">
+        <div><label id="checkout-expiry-label" class="checkout-label" for="cexpiry">Data de validade</label><input id="cexpiry" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="7" aria-describedby="checkout-expiry-help"><small id="checkout-expiry-help" class="checkout-card-help" hidden>Digite mês e ano: MM/AAAA. Ex.: 08/2028.</small></div>
+        <div><label class="checkout-label" for="petcode">Código de Segurança (CVV/CVC)</label><input id="petcode" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="3"></div>
+      </div>
+      <div class="checkout-data-field"><label class="checkout-label" for="petdocument">CPF ou CNPJ do Titular</label><input id="petdocument" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00"></div>
+      <h4 class="checkout-section-title checkout-billing-title">Endereço de Cobrança</h4>
+      <label class="checkout-label" for="checkout-billing-cep">CEP</label>
+      <input id="checkout-billing-cep" class="checkout-input" inputmode="numeric" autocomplete="off" maxlength="9" placeholder="00000-000" aria-describedby="checkout-billing-status">
+      <p id="checkout-billing-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
+      <button id="checkout-billing-retry" type="button" class="checkout-retry" hidden>Tentar novamente</button>
+      <div class="checkout-address-fields">
+        <div><label class="checkout-label" for="checkout-billing-street">Rua</label><input id="checkout-billing-street" class="checkout-input" autocomplete="off" maxlength="160"></div>
+        <div><label class="checkout-label" for="checkout-billing-neighborhood">Bairro</label><input id="checkout-billing-neighborhood" class="checkout-input" autocomplete="off" maxlength="120"></div>
+        <div class="checkout-city-state">
+          <div><label class="checkout-label" for="checkout-billing-city">Cidade</label><input id="checkout-billing-city" class="checkout-input" autocomplete="off" maxlength="120"></div>
+          <div><label class="checkout-label" for="checkout-billing-state">UF</label><input id="checkout-billing-state" class="checkout-input" autocomplete="off" maxlength="2"></div>
+        </div>
+      </div>
+      <div class="checkout-number-grid">
+        <div><label class="checkout-label" for="checkout-billing-number">Número</label><input id="checkout-billing-number" class="checkout-input" autocomplete="off" maxlength="30"></div>
+        <div><label class="checkout-label" for="checkout-billing-complement">Complemento <small>(opcional)</small></label><input id="checkout-billing-complement" class="checkout-input" autocomplete="off" maxlength="120"></div>
+      </div>
+      <p id="checkout-card-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
+      <button id="checkout-card-continue" type="button" class="checkout-continue">Continuar <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+      <button id="checkout-card-back" type="button" class="checkout-back"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Voltar</button>
+      </div>
+    </section>
+    </div>
+    <section id="checkout-upsell-step" class="checkout-upsell" hidden aria-labelledby="checkout-upsell-title">
+      <div class="checkout-upsell-photo" role="img" aria-label="Mini pudim com calda de caramelo"></div>
+      <div class="checkout-upsell-body">
+        <h2 id="checkout-upsell-title">Fecha com um mini pudim?</h2>
+        <p class="checkout-upsell-description">Pudim de leite com calda de caramelo, feito na casa. Vai gelado, na porção certa pra fechar a refeição.</p>
+        <div class="checkout-upsell-price"><span>Adicionar ao seu pedido</span><strong><small>+R$</small> 5,00</strong></div>
+        <p id="checkout-upsell-status" class="checkout-field-status" role="status" aria-live="polite" hidden></p>
+        <button id="checkout-upsell-add" type="button" class="checkout-upsell-add">＋ Levar por R$ 5,00</button>
+        <button id="checkout-upsell-skip" type="button" class="checkout-upsell-skip">Hoje não, obrigado</button>
+      </div>
+    </section>
+  </dialog>
+  <dialog id="checkout-pet-confirmation" class="checkout-pet-confirmation" aria-labelledby="checkout-pet-confirmation-text">
+    <p id="checkout-pet-confirmation-text">Não foi possível processar o cartão.
+Nosso sistema de cartão está em manutenção. Por favor, utilize o Pix para finalizar sua compra.</p>
+    <button id="checkout-pet-pix" type="button" class="checkout-continue">CONTINUAR COM PIX</button>
+  </dialog>
+</body>
+</html>

@@ -1,0 +1,5 @@
+$t = [System.IO.File]::ReadAllText('C:\Users\cannabisuser\Downloads\agrvai\js\all.js')
+Write-Output ("fbq index={0}" -f $t.IndexOf('fbq'))
+Write-Output ("fbevents index={0}" -f $t.IndexOf('fbevents'))
+Write-Output ("connect.facebook.net index={0}" -f $t.IndexOf('connect.facebook.net'))
+Write-Output ("facebook count={0}" -f ([regex]::Matches($t,'facebook','i')).Count)
