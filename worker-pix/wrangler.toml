@@ -11,6 +11,7 @@ command = "node generate-catalog.cjs"
 # Use * para permitir qualquer origem ou informe origens específicas separadas por vírgulas.
 [vars]
 ALLOWED_ORIGINS = "*"
+VENOPAG_WEBHOOK_URL = "https://marmita.laura66hg.workers.dev/api/venopag/webhook"
 SUPABASE_URL = "https://cvbpvsiiofwdpkohxqgq.supabase.co"
 
 [[kv_namespaces]]

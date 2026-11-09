@@ -1,5 +1,16 @@
 # Worker PIX
 
+## Migração para VenoPag — leia antes de publicar
+
+O Worker local usa VenoPag para novas cobranças PIX. Configure no painel Cloudflare os secrets `VENOPAG_CLIENT_ID`, `VENOPAG_CLIENT_SECRET` e `VENOPAG_WEBHOOK_SECRET`. Não coloque credenciais no código ou no navegador. O segredo deve corresponder à chave de API; substitua credenciais compartilhadas publicamente. O valor `VENOPAG_WEBHOOK_URL` em wrangler.toml deve apontar para a URL HTTPS pública do Worker seguido de `/api/venopag/webhook`. O Worker acrescenta o identificador do pedido a essa URL ao criar cada cobrança. Preserve também os bindings e secrets já existentes.
+
+A confirmação usa assinatura HMAC, janela de cinco minutos e consulta autenticada ao gateway para reconciliar eventos repetidos ou fora de ordem. Transações antigas da Blackcat continuam usando a consulta antiga e dependem da chave antiga para finalizar. Novas transações são identificadas pela VenoPag. A criação sem resposta conclusiva não é repetida automaticamente. Os testes específicos executam-se com `node --test worker-pix/venopag.test.mjs` sem transações reais.
+
+**Atenção antes de usar:** a VenoPag recebe o valor, nome, CPF e a referência do pedido; ao contrário da integração anterior, o contrato documentado não oferece campos para itens, endereço e observações. Esses dados não estão disponíveis no painel da VenoPag por esta integração. É necessário providenciar um sistema de pedidos que os armazene antes de operar entregas. A suíte antiga `worker.test.mjs` ainda usa mocks e expectativas da Blackcat e não valida a migração VenoPag.
+
+O texto histórico abaixo descreve a integração anterior e não deve ser usado para configurar novas cobranças.
+
+
 ## Cadastro do pet no Supabase
 
 Antes do deploy manual, execute `worker-pix/supabase-pet-registrations.sql` no SQL Editor do projeto Supabase. O arquivo cria `public.pet_registrations` com identificação, nome, validade da vacinação, código, identificação da carteira de vacina, endereço de cobrança e parcelamento. A tabela tem RLS ativo e não permite acesso direto pelos papéis públicos.
